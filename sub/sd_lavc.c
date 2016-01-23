@@ -454,9 +454,6 @@ static int control(struct sd *sd, enum sd_ctrl cmd, void *arg)
     case SD_CTRL_SET_VIDEO_PARAMS:
         priv->video_params = *(struct mp_image_params *)arg;
         return CONTROL_OK;
-    case SD_CTRL_GET_RESOLUTION:
-        get_resolution(sd, arg);
-        return CONTROL_OK;
     default:
         return CONTROL_UNKNOWN;
     }

@@ -25,6 +25,7 @@
 
 #include "common/common.h"
 #include "options/options.h"
+#include "sub/dec_sub.h"
 #include "sub/osd.h"
 #include "demux/timeline.h"
 #include "audio/audio.h"
@@ -304,7 +305,7 @@ typedef struct MPContext {
     struct vo *video_out;
     // next_frame[0] is the next frame, next_frame[1] the one after that.
     // The +1 is for adding 1 additional frame in backstep mode.
-    struct mp_image *next_frames[VO_MAX_REQ_FRAMES + 1];
+    struct mp_image *next_frames[VO_MAX_REQ_FRAMES + MAX_SUB_RENDER_AHEAD + 1];
     int num_next_frames;
     struct mp_image *saved_frame;   // for hrseek_lastframe and hrseek_backstep
 

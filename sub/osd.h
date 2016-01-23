@@ -201,6 +201,8 @@ struct mp_osd_res osd_get_vo_res(struct osd_state *osd, int obj);
 void osd_rescale_bitmaps(struct sub_bitmaps *imgs, int frame_w, int frame_h,
                          struct mp_osd_res res, double compensate_par);
 
+bool osd_res_equals(struct mp_osd_res a, struct mp_osd_res b);
+
 // defined in osd_libass.c and osd_dummy.c
 
 // internal use only

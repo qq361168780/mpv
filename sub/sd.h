@@ -23,7 +23,6 @@ struct sd {
 
 struct sd_functions {
     const char *name;
-    bool accept_packets_in_advance;
     int  (*init)(struct sd *sd);
     void (*decode)(struct sd *sd, struct demux_packet *packet);
     void (*reset)(struct sd *sd);

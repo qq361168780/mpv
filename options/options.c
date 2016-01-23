@@ -39,6 +39,7 @@
 #include "stream/stream.h"
 #include "video/csputils.h"
 #include "video/hwdec.h"
+#include "sub/dec_sub.h"
 #include "sub/osd.h"
 #include "audio/mixer.h"
 #include "audio/filter/af.h"
@@ -379,6 +380,7 @@ const m_option_t mp_opts[] = {
     OPT_SUBSTRUCT("osd", osd_style, osd_style_conf, 0),
     OPT_SUBSTRUCT("sub-text", sub_text_style, sub_style_conf, 0),
     OPT_FLAG("sub-clear-on-seek", sub_clear_on_seek, 0),
+    OPT_INTRANGE("sub-render-ahead", sub_render_ahead, 0, 0, MAX_SUB_RENDER_AHEAD),
 
 //---------------------- libao/libvo options ------------------------
     OPT_SETTINGSLIST("vo", vo.video_driver_list, 0, &vo_obj_list),

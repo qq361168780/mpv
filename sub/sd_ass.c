@@ -647,7 +647,6 @@ static int control(struct sd *sd, enum sd_ctrl cmd, void *arg)
 
 const struct sd_functions sd_ass = {
     .name = "ass",
-    .accept_packets_in_advance = true,
     .init = init,
     .decode = decode,
     .get_bitmaps = get_bitmaps,

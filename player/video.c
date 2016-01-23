@@ -665,6 +665,7 @@ static int get_req_frames(struct MPContext *mpctx, bool eof)
         return mpctx->opts->video_sync == VS_DEFAULT ? 1 : 2;
 
     int req = vo_get_num_req_frames(mpctx->video_out);
+    req += mpctx->opts->sub_render_ahead;
     return MPCLAMP(req, 2, MP_ARRAY_SIZE(mpctx->next_frames) - 1);
 }
 
@@ -682,6 +683,12 @@ static void add_new_frame(struct MPContext *mpctx, struct mp_image *frame)
     mpctx->next_frames[mpctx->num_next_frames++] = frame;
     if (mpctx->num_next_frames == 1)
         handle_new_frame(mpctx);
+
+    for (int n = 0; n < NUM_PTRACKS; n++) {
+        struct track *sub = mpctx->current_track[n][STREAM_SUB];
+        if (sub && sub->d_sub)
+            sub_read_packets(sub->d_sub, frame->pts);
+    }
 }
 
 // Enough video filtered already to push one frame to the VO?

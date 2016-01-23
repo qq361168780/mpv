@@ -270,6 +270,7 @@ typedef struct MPOpts {
     int ass_hinting;
     int ass_shaper;
     int sub_clear_on_seek;
+    int sub_render_ahead;
 
     int hwdec_api;
     char *hwdec_codecs;

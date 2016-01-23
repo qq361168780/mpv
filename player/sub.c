@@ -95,7 +95,7 @@ static bool update_subtitle(struct MPContext *mpctx, double video_pts,
     if (mpctx->vo_chain) {
         struct mp_image_params params = mpctx->vo_chain->vf->input_params;
         if (params.imgfmt)
-            sub_control(dec_sub, SD_CTRL_SET_VIDEO_PARAMS, &params);
+            sub_set_video_fmt(dec_sub, &params);
     }
 
     video_pts -= opts->sub_delay;
@@ -108,10 +108,8 @@ static bool update_subtitle(struct MPContext *mpctx, double video_pts,
         track->preloaded = sub_read_all_packets(track->d_sub);
     }
 
-    if (!track->preloaded) {
-        if (!sub_read_packets(dec_sub, video_pts))
-            return false;
-    }
+    if (!sub_read_packets(dec_sub, video_pts))
+        return false;
 
     // Handle displaying subtitles on terminal; never done for secondary subs
     if (mpctx->current_track[0][STREAM_SUB] == track && !mpctx->video_out)

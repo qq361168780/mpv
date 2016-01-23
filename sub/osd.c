@@ -100,7 +100,7 @@ const struct m_sub_options sub_style_conf = {
     },
 };
 
-static bool osd_res_equals(struct mp_osd_res a, struct mp_osd_res b)
+bool osd_res_equals(struct mp_osd_res a, struct mp_osd_res b)
 {
     return a.w == b.w && a.h == b.h && a.ml == b.ml && a.mt == b.mt
         && a.mr == b.mr && a.mb == b.mb
@@ -248,7 +248,7 @@ static void render_object(struct osd_state *osd, struct osd_object *obj,
     }
 
     if (obj->type == OSDTYPE_SUB || obj->type == OSDTYPE_SUB2) {
-        if (obj->sub) {
+        if (obj->sub && opts->sub_visibility) {
             double sub_pts = video_pts;
             if (sub_pts != MP_NOPTS_VALUE)
                 sub_pts -= opts->sub_delay;
@@ -326,9 +326,6 @@ void osd_draw(struct osd_state *osd, struct mp_osd_res res,
         if ((draw_flags & OSD_DRAW_OSD_ONLY) && obj->is_sub)
             continue;
 
-        if (obj->sub)
-            sub_lock(obj->sub);
-
         struct sub_bitmaps imgs;
         render_object(osd, obj, res, video_pts, formats, &imgs);
         if (imgs.num_parts > 0) {
@@ -341,7 +338,7 @@ void osd_draw(struct osd_state *osd, struct mp_osd_res res,
         }
 
         if (obj->sub)
-            sub_unlock(obj->sub);
+            sub_release_bitmaps(obj->sub);
     }
 
     pthread_mutex_unlock(&osd->lock);
