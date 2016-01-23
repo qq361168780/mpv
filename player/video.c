@@ -1287,11 +1287,12 @@ void write_video(struct MPContext *mpctx, double endpts)
     };
     calculate_frame_duration(mpctx);
 
+    int max_queue = vo_get_num_req_frames(mpctx->video_out);
     struct vo_frame dummy = {
         .pts = pts,
         .duration = -1,
         .still = mpctx->step_frames > 0,
-        .num_frames = MPMIN(mpctx->num_next_frames, VO_MAX_REQ_FRAMES),
+        .num_frames = MPMIN(mpctx->num_next_frames, max_queue),
         .num_vsyncs = 1,
     };
     for (int n = 0; n < dummy.num_frames; n++)
