@@ -1983,6 +1983,28 @@ static void pass_draw_to_screen(struct gl_video *p, int fbo)
     finish_pass_direct(p, fbo, p->vp_w, p->vp_h, &p->dst_rect, flags);
 }
 
+static int get_queue_size(struct gl_video *p)
+{
+    int queue_size = 1;
+
+    // Figure out an adequate size for the interpolation queue. The larger
+    // the radius, the earlier we need to queue frames.
+    if (p->opts.interpolation) {
+        const struct filter_kernel *kernel =
+            mp_find_filter_kernel(p->opts.scaler[3].kernel.name);
+        if (kernel) {
+            double radius = kernel->f.radius;
+            radius = radius > 0 ? radius : p->opts.scaler[3].radius;
+            queue_size += 1 + ceil(radius);
+        } else {
+            // Oversample case
+            queue_size += 2;
+        }
+    }
+
+    return queue_size;
+}
+
 // Draws an interpolate frame to fbo, based on the frame timing in t
 static void gl_video_interpolate_frame(struct gl_video *p, struct vo_frame *t,
                                        int fbo)
@@ -2047,7 +2069,8 @@ static void gl_video_interpolate_frame(struct gl_video *p, struct vo_frame *t,
     // it only barely matters at the very beginning of playback, and this way
     // makes the code much more linear.
     int surface_dst = fbosurface_wrap(p->surface_idx+1);
-    for (int i = 0; i < t->num_frames; i++) {
+    int queue_size = get_queue_size(p);
+    for (int i = 0; i < MPMIN(queue_size, t->num_frames); i++) {
         // Avoid overwriting data we might still need
         if (surface_dst == surface_bse - 1)
             break;
@@ -2869,24 +2892,7 @@ void gl_video_set_options(struct gl_video *p, struct gl_video_opts *opts)
 
 void gl_video_configure_queue(struct gl_video *p, struct vo *vo)
 {
-    int queue_size = 1;
-
-    // Figure out an adequate size for the interpolation queue. The larger
-    // the radius, the earlier we need to queue frames.
-    if (p->opts.interpolation) {
-        const struct filter_kernel *kernel =
-            mp_find_filter_kernel(p->opts.scaler[3].kernel.name);
-        if (kernel) {
-            double radius = kernel->f.radius;
-            radius = radius > 0 ? radius : p->opts.scaler[3].radius;
-            queue_size += 1 + ceil(radius);
-        } else {
-            // Oversample case
-            queue_size += 2;
-        }
-    }
-
-    vo_set_queue_params(vo, 0, queue_size);
+    vo_set_queue_params(vo, 0, get_queue_size(p));
 }
 
 struct mp_csp_equalizer *gl_video_eq_ptr(struct gl_video *p)
