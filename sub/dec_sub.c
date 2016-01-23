@@ -95,7 +95,7 @@ static void copy_sub_bitmaps(struct sub_bitmaps *dst, struct sub_bitmaps *src)
     assert(src->format == SUBBITMAP_EMPTY || src->format == SUBBITMAP_LIBASS);
     *dst = *src;
     dst->parts =
-        talloc_memdup(NULL, src->parts, sizeof(dst->parts[0]) * src->num_parts);
+        talloc_memdup(NULL, src->parts, sizeof(src->parts[0]) * src->num_parts);
     for (int n = 0; n < dst->num_parts; n++) {
         struct sub_bitmap *p = &dst->parts[n];
         p->bitmap = talloc_memdup(dst->parts, p->bitmap, p->stride * p->h);
@@ -120,11 +120,25 @@ static void *sub_thread(void *arg)
 
     pthread_mutex_lock(&sub->state_lock);
     while (sub->threaded) {
-        for (int n = 0; n < sub->num_packets; n++) {
-            sub->sd->driver->decode(sub->sd, sub->packets[n]);
-            talloc_free(sub->packets[n]);
-        }
+        struct demux_packet **packets = sub->packets;
+        int num_packets = sub->num_packets;
+        sub->packets = NULL;
         sub->num_packets = 0;
+        if (num_packets) {
+            pthread_mutex_unlock(&sub->state_lock);
+            pthread_mutex_lock(&sub->sd_lock);
+
+            for (int n = 0; n < num_packets; n++) {
+                sub->sd->driver->decode(sub->sd, packets[n]);
+                talloc_free(packets[n]);
+            }
+
+            pthread_mutex_unlock(&sub->sd_lock);
+            pthread_mutex_lock(&sub->state_lock);
+            talloc_free(packets);
+            continue;
+        }
+        talloc_free(packets);
 
         struct cache_entry *e = NULL;
         for (int n = 0; n < sub->num_entries; n++) {
@@ -165,8 +179,6 @@ static void flush_cache(struct dec_sub *sub)
     for (int n = 0; n < sub->num_entries; n++)
         cache_entry_unref(sub->entries[n]);
     sub->num_entries = 0;
-    cache_entry_unref(sub->cur);
-    sub->cur = NULL;
 }
 
 static void flush_packets(struct dec_sub *sub)
@@ -189,6 +201,7 @@ void sub_destroy(struct dec_sub *sub)
     }
     flush_cache(sub);
     flush_packets(sub);
+    assert(sub->cur == NULL);
     if (sub->sd) {
         sub_reset(sub);
         sub->sd->driver->uninit(sub->sd);
@@ -326,10 +339,12 @@ bool sub_read_packets(struct dec_sub *sub, double video_pts)
         // xxx: can overflow if either
         // - static readahead count is greater than MAX_BUFFER
         // - VO is somehow not rendering subs
-        assert(sub->num_entries < MAX_BUFFER);
-        if (!sub->num_entries ||
-            video_pts > sub->entries[sub->num_entries - 1]->pts)
+        //assert(sub->num_entries < MAX_BUFFER);
+        if ((!sub->num_entries ||
+            video_pts > sub->entries[sub->num_entries - 1]->pts) &&
+            sub->num_entries < MAX_BUFFER)
         {
+          //  MP_WARN(sub,"add %f -> %d \n", video_pts, sub->num_entries);
             struct cache_entry *e = talloc_ptrtype(NULL, e);
             *e = (struct cache_entry){
                 .pts = video_pts,
@@ -355,6 +370,7 @@ void sub_get_bitmaps(struct dec_sub *sub, struct mp_osd_res dim, double pts,
         pthread_mutex_lock(&sub->state_lock);
         if (!osd_res_equals(sub->last_osd_res, dim)) {
             sub->last_osd_res = dim;
+            flush_cache(sub);
             pthread_cond_broadcast(&sub->state_wakeup);
         }
         assert(!sub->cur);
@@ -362,6 +378,7 @@ void sub_get_bitmaps(struct dec_sub *sub, struct mp_osd_res dim, double pts,
             struct cache_entry *e = sub->entries[n];
             if (e->pts < pts) {
                 // Assume old entries are not needed anymore.
+//                MP_WARN(sub, "prune %f at %f -> %d \n", e->pts, pts, sub->num_entries);
                 cache_entry_unref(e);
                 MP_TARRAY_REMOVE_AT(sub->entries, sub->num_entries, n);
                 n--;
@@ -377,6 +394,8 @@ void sub_get_bitmaps(struct dec_sub *sub, struct mp_osd_res dim, double pts,
             while (!sub->cur->rendered)
                 pthread_cond_wait(&sub->state_wakeup, &sub->state_lock);
             *res = sub->cur->data;
+            //xxx: if there's a cache miss, then it might happen that older
+            //     subs are being rendered again => must add change_id
             //MP_WARN(sub, "%f in cache\n", pts);
         }
         pthread_mutex_unlock(&sub->state_lock);
@@ -384,7 +403,7 @@ void sub_get_bitmaps(struct dec_sub *sub, struct mp_osd_res dim, double pts,
             return;
     }
 
-    MP_WARN(sub, "%f not in cache\n", pts);
+    //MP_WARN(sub, "%f not in cache\n", pts);
     pthread_mutex_lock(&sub->sd_lock);
     assert(!sub->reserved);
     sub->reserved = true;
@@ -396,17 +415,17 @@ void sub_release_bitmaps(struct dec_sub *sub)
     if (sub->threaded) {
         pthread_mutex_lock(&sub->state_lock);
         bool had_sub = !!sub->cur;
-        if (sub->cur)
-            cache_entry_unref(sub->cur);
+        cache_entry_unref(sub->cur);
         sub->cur = NULL;
         pthread_mutex_unlock(&sub->state_lock);
         if (had_sub)
             return;
     }
 
-    assert(sub->reserved);
-    sub->reserved = false;
-    pthread_mutex_unlock(&sub->sd_lock);
+    if (sub->reserved) {
+        sub->reserved = false;
+        pthread_mutex_unlock(&sub->sd_lock);
+    }
 }
 
 // See sub_get_bitmaps() for locking requirements.
